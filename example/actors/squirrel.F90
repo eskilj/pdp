@@ -8,6 +8,7 @@ module squirrel_mod
   integer :: ierr
   integer, parameter :: BIRTH_INTERVAL = 50
   integer, parameter :: INFECTION_INTERVAL = 50
+  integer, parameter :: MIN_INFECTED_STEPS = 50
 
   type, public,  extends(actor) :: squirrel
     integer :: cell = 0, step = 0, infected = 0
@@ -39,8 +40,8 @@ module squirrel_mod
   subroutine squirrel_work(this)
     class(squirrel) :: this
     integer, dimension(2) :: cell_data
-    integer, dimension(50) :: pop_history = 0, inf_history = 0
-    integer :: status(MPI_STATUS_SIZE), request, pop_sum , inf_sum
+    integer, dimension(INFECTION_INTERVAL) :: inf_history = 0
+    integer :: status(MPI_STATUS_SIZE), request, pop_sum , infected_steps = 0
     logical :: recv
 
     ! print *, "sqrl: ", this%id, "- infected: ", this%infected
@@ -57,10 +58,12 @@ module squirrel_mod
       if (recv) then
         call MPI_Irecv(cell_data, 2, MPI_INTEGER, this%cell, JUMP_TAG, MPI_COMM_WORLD, request, ierr)
 
-        ! pop_history = cshift(pop_history, shift=-1)
-        ! pop_history(1) = cell_data(1)
         pop_sum = pop_sum + cell_data(1)
-        if (this%infected == 0) inf_sum = inf_sum + cell_data(2)
+
+        if (this%infected == 0) then
+          inf_history = cshift(inf_history, shift=-1)
+          inf_history(1) = cell_data(2)
+        end if
         
       end if
 
@@ -76,13 +79,21 @@ module squirrel_mod
       end if
 
       ! Check if will get infected
-      if ( this%infected == 0 .AND. MOD(this%step, INFECTION_INTERVAL) == 0) then
-        if ( willCatchDisease(real(inf_sum/INFECTION_INTERVAL), this%state) ) then
-          inf_sum = 0
+      if ( this%infected == 0 ) then
+        if ( willCatchDisease(real(sum(inf_history)/INFECTION_INTERVAL), this%state) ) then
+          inf_history(:) = 0
           this%infected = 1
         end if
-      end if
+      else !Already infected squirrel
+        
+        infected_steps = infected_steps + 1
+        if (infected_steps .ge. MIN_INFECTED_STEPS) then
+          if (willDie(this%state)) then
+            EXIT
+          end if
+        end if
 
+      end if
 
     end do
 
