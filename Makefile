@@ -3,6 +3,7 @@
 SRC_DIR 	= src
 EX_DIR		= example
 INC_DIR		= $(EX_DIR)/inc
+OUT_DIR		= output
 
 ACTOR_DIR	= actor
 BUILD_DIR 	= build
@@ -32,5 +33,8 @@ all:
 mac:
 	$(CC) $(SRC) $(INC_SRC) $(SIM_SRC) $< $(INC_MAC) $(MOD_DIR) -o $(BUILD_DIR)/$(EXEC) $(LFLAGS)
 
+out:
+	cat $(OUT_DIR)/*.OU
+
 clean:
-	rm -rf main *.o *.mod $(BUILD_DIR)/* $(MOD_DIR)/*
+	rm -rf main *.o *.mod $(BUILD_DIR)/* $(MOD_DIR)/* $(OUT_DIR)/*

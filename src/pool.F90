@@ -66,11 +66,13 @@ module pool
             deallocate(PP_active)
             call createCommandPackage(PP_STOP, out_command)
             do i=1,PP_numProcs - 1
-                if (PP_DEBUG) write(6,"(A,I0)") "[Master] Shutting down process ", i
+                !write(6,"(A,I0)") "[Master] Shutting down process ", i
                 call MPI_Send(out_command, 1, PP_COMMAND_TYPE, i, PP_CONTROL_TAG, MPI_COMM_WORLD, ierr)
             end do
         end if
-        ! print *, "SHUTTING DOWN"
+
+        ! print *, "SHUTTING DOWN -", PP_myRank
+
         call MPI_Barrier(MPI_COMM_WORLD, ierr)
         call MPI_Type_Free(PP_COMMAND_TYPE, ierr)
     end subroutine processPoolFinalise
@@ -164,9 +166,11 @@ module pool
         getCommandData = in_command%data
     end function getCommandData
 
-    integer function get_num_workers()
-        get_num_workers = INT(count(PP_active))
+    integer function get_num_workers(pp_start)
+        integer :: pp_start
+        get_num_workers = INT(count(PP_active(pp_start:)))
     end function get_num_workers
+    
 
     integer function get_rank()
         get_rank = PP_myRank

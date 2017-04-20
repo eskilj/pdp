@@ -9,40 +9,23 @@ implicit none
   type actor
     integer :: id
     integer :: state
+    integer :: status
     integer :: parent
   contains
     final :: finalize
     procedure :: work
-    procedure :: send
-    procedure :: recv
+    ! procedure :: send
+    ! procedure :: recv
     procedure :: init
     procedure :: create_msg_type
-
   end type actor
 
-  ! interface actor
-  !   module procedure init
-  ! end interface actor
-
 contains
-
-  ! function init() result(this)
-  !   class(actor) :: this
-  !   this%id = 2
-  !   this%state = 44
-  !   print *, "Creating actor."
-  ! end function
-
-  ! subroutine construct_actor(this)
-  !   class(actor), intent(inout) :: this
-  !   print *, "Const. Actor"
-  ! end subroutine construct_actor
 
   subroutine create_msg_type(this)
     class(actor) :: this
     call create_type()
   end subroutine create_msg_type
-
 
   subroutine init(this, p_rank, p_parent)
     class(actor) :: this
@@ -62,19 +45,18 @@ contains
     ! print *, "Shutting down actor."
   end subroutine
 
-  subroutine send(this, recipient, data)
-    class(actor), intent(in) :: this
-    integer, intent(in) :: recipient, data
+  ! subroutine send(this, recipient, data)
+  !   class(actor), intent(in) :: this
+  !   integer, intent(in) :: recipient, data
 
-    call send_message(this%id, recipient, data)
-    ! print *, "actor: ", this%id, "- sent msg to: ", recipient
+  !   call send_message(this%id, recipient, data)
 
-  end subroutine send
+  ! end subroutine send
 
-  subroutine recv(self)
-    class(actor), intent(in) :: self
-    call recv_message(self%id)
-  end subroutine recv
+  ! subroutine recv(self)
+  !   class(actor), intent(in) :: self
+  !   call recv_message(self%id)
+  ! end subroutine recv
 
   subroutine create_new_actor()
     print *, "new actor"

@@ -13,7 +13,7 @@ module factory_mod
       type(product), dimension(:), allocatable :: products
     contains
       procedure :: init_factory
-      procedure :: create_actor
+      ! procedure :: create_actor
       procedure :: close
   end type Factory
 
@@ -32,19 +32,19 @@ module factory_mod
     deallocate(self%products)
   end subroutine close
 
-  function create_actor(self, actor_name) result(ptr)
-    class(Factory) :: self
-    character :: actor_name
-    class(actor), pointer :: ptr
+  ! function create_actor(self, actor_name) result(ptr)
+  !   class(Factory) :: self
+  !   character :: actor_name
+  !   class(actor), pointer :: ptr
 
-    select CASE (actor_name)
-      CASE ("squirrel")
-        print *, "make sq."
-      CASE DEFAULT
-        print *, "make sq."
-    end select
+  !   select CASE (actor_name)
+  !     CASE ("squirrel")
+  !       print *, "make sq."
+  !     CASE DEFAULT
+  !       print *, "make sq."
+  !   end select
 
-  end function create_actor
+  ! end function create_actor
 
   ! subroutine new_factory(self, )
 

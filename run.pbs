@@ -1,0 +1,20 @@
+#!/bin/bash --login                                                             
+
+#PBS -A d136                                                                    
+#PBS -N squirrel                                                                 
+#PBS -l place=excl                                                              
+#PBS -l select=288                                                              
+#PBS -l walltime=00:05:00                                                       
+#PBS -o output/
+#PBS -e output/
+# Change to the directory that the job was submitted from                       
+
+cd $PBS_O_WORKDIR
+
+# Load SGI MPI and Intel compilers                                              
+
+module load mpt
+module load intel-compilers-16
+
+# Launch the parallel jobs                                                      
+mpirun -n 220 ./build/main

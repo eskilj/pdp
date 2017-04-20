@@ -1,5 +1,6 @@
 module cell_mod
   use actor_mod
+  use pool
   implicit none
 
   private
@@ -27,6 +28,10 @@ contains
 
     do
 
+      if (shouldWorkerStop()) then
+        EXIT
+      end if
+
       call MPI_IPROBE(MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, recv, status, ierr)
 
       if (recv) then
@@ -47,6 +52,8 @@ contains
 
           case (NEW_MONTH_TAG) ! Handle new month
 
+            print *, "NEW month"
+
             pop_history = cshift(pop_history, shift=-1)
             pop_history(1) = 0
 
@@ -57,13 +64,18 @@ contains
 
           case (SHUTDOWN_TAG) ! Handle shut-down
 
-          case default ! Handle default (not known)
+            print *, "SHUTDOWN TAG"
+            ! EXIT
 
+          case default ! Handle default (not known)
+            PRINT *, "ERROR CELL"
           end select
 
       end if      
 
     end do
+
+    ! print *, "SHUTDOWN CELL: ", this%id
 
   end subroutine cell_work
 

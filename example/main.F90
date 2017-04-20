@@ -4,4 +4,6 @@ program main
 
   call run()
 
+  ! PRINT *, "-- FIN --"
+
 end program main
