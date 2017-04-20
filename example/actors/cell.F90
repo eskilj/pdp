@@ -7,75 +7,73 @@ module cell_mod
   include "mpif.h"
 
   integer :: ierr
+  type(actor_msg) :: msg
+
+  ! Cell Comm. tags
+  integer, parameter :: START_TAG = 100
+  integer, parameter :: STEP_TAG = 101
+  integer, parameter :: MONTH_TAG = 104
+  integer, parameter :: KILL_TAG = 102
+
+
 
   type, public, extends(actor) :: cell
-  integer :: pop_influx = 0
-  integer :: infection_level = 0
-  integer :: month
+    integer :: pop_influx = 0
+    integer :: infection_level = 0
+    integer :: month = 0
+    integer, dimension(2) :: inf_history = 0
+    integer, dimension(3) :: pop_history = 0
   contains
     procedure :: work => cell_work
   end type cell
 
-contains
+  contains
 
   subroutine cell_work(this)
     class(cell) :: this
-    integer, dimension(2) :: frog_data, inf_history = 0
-    integer, dimension(3) :: pop_history = 0
-    integer :: frog_inf
     integer :: status(MPI_STATUS_SIZE), request
     logical :: recv
 
     do
 
+      ! Handle incoming messages
+      call recv_message(msg)
+
+      select case (msg%tag)
+
+        case (STEP_TAG)
+
+          print *, "SQIRR STEP TO CELL"
+
+          this%pop_history(1) = this%pop_history(1) + 1
+          this%inf_history(1) = this%inf_history(1) + msg%data(1)
+          request = msg%data(2)
+
+          msg%data(1) = sum(this%pop_history)
+          msg%data(2) = sum(this%inf_history)
+
+          call send_message(request, msg)
+
+        case (MONTH_TAG)
+          print *, "MONTH"
+
+          this%pop_history = cshift(this%pop_history, shift=-1)
+          this%pop_history(1) = 0
+
+          this%inf_history = cshift(this%inf_history, shift=-1)
+          this%inf_history(1) = 0
+
+          this%month = this%month + 1
+
+        case default ! Unknown tag
+
+        end select
+
       if (shouldWorkerStop()) then
         EXIT
-      end if
-
-      call MPI_IPROBE(MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, recv, status, ierr)
-
-      if (recv) then
-
-        select case(status(MPI_TAG))
-          
-          case (JUMP_TAG) ! Handle message from squirrel
-
-            call MPI_Irecv(frog_inf, 1, MPI_INTEGER, MPI_ANY_SOURCE, JUMP_TAG, MPI_COMM_WORLD, request, ierr)
-
-            pop_history(1) = pop_history(1) + 1
-            inf_history(1) = inf_history(1) + frog_inf
-
-            frog_data(1) = sum(pop_history)
-            frog_data(2) = sum(inf_history)
-
-            call MPI_BSEND(frog_data, 2, MPI_INTEGER, status(MPI_SOURCE), JUMP_TAG, MPI_COMM_WORLD, ierr)
-
-          case (NEW_MONTH_TAG) ! Handle new month
-
-            print *, "NEW month"
-
-            pop_history = cshift(pop_history, shift=-1)
-            pop_history(1) = 0
-
-            inf_history = cshift(inf_history, shift=-1)
-            inf_history(1) = 0
-
-            this%month = this%month + 1
-
-          case (SHUTDOWN_TAG) ! Handle shut-down
-
-            print *, "SHUTDOWN TAG"
-            ! EXIT
-
-          case default ! Handle default (not known)
-            PRINT *, "ERROR CELL"
-          end select
-
-      end if      
+      end if    
 
     end do
-
-    ! print *, "SHUTDOWN CELL: ", this%id
 
   end subroutine cell_work
 

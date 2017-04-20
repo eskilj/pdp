@@ -6,7 +6,7 @@ module actor_comm
   integer :: ierr, actor_message_type
 
   type, public :: actor_msg
-    integer :: tag
+    integer :: tag = -1
     integer, dimension(2) :: data = 0
     real, dimension(2) :: real_data = 0.0
   end type actor_msg
@@ -47,20 +47,20 @@ module actor_comm
   end subroutine create_type
 
   subroutine send_message(recipient, msg)
-    type(actor_msg) :: msg
+    type(actor_msg), intent(in) :: msg
     integer :: recipient
-
+    print *, "SEND"
     call MPI_BSEND(msg, 1, actor_message_type, recipient, msg%tag, MPI_COMM_WORLD, ierr)
 
   end subroutine send_message
 
 
   subroutine recv_message(msg)
-    type(actor_msg), intent(inout) :: msg
+    type(actor_msg), intent(out) :: msg
     integer :: status(MPI_STATUS_SIZE), request
     logical :: recv
 
-    ! print *, "actor recv: ", id
+    msg%tag = -1
 
     call MPI_IPROBE(MPI_ANY_SOURCE, 1, MPI_COMM_WORLD, recv, status, ierr)
 

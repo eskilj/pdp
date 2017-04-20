@@ -1,5 +1,5 @@
 module simulation
-! use factory_mod
+use actor_comm
 use squirrel_mod
 use cell_mod
 use director_mod
@@ -10,6 +10,7 @@ private
 include "mpif.h"
 
   integer :: ierr
+  type(actor_msg) :: msg
   integer, parameter :: BUFF_SIZE = 10240
   character :: BUFFER (BUFF_SIZE)
 
@@ -72,12 +73,19 @@ subroutine create_actors()
   end do
 
   do i=1, INIT_SQUIRRELS
+
     infected = 0
     workerPid = startWorkerProcess()
+    
     if (i .le. INIT_INFECTED) then
       infected = 1
     end if
-    call MPI_BSEND(infected, 1, MPI_INTEGER, workerPid, 0, MPI_COMM_WORLD, ierr)
+
+    msg%tag = 100
+    msg%data(1) = infected
+
+    call send_message(i, msg)
+    ! call MPI_BSEND(infected, 1, MPI_INTEGER, workerPid, 0, MPI_COMM_WORLD, ierr)
   end do
 
   

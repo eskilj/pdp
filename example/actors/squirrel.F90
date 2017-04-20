@@ -3,10 +3,12 @@ module squirrel_mod
   use squirrel_functions
   use pool
   implicit none
+
   private
   include "mpif.h"
 
   integer :: ierr
+  type(actor_msg) :: msg
 
   ! Squirrel life-cycle parameters
   integer, parameter :: BIRTH_INTERVAL = 50
@@ -25,9 +27,10 @@ module squirrel_mod
   ! Squirrel type, inherits from actor
   type, public,  extends(actor) :: squirrel
     integer :: cell = 0
-    integer :: step = 0
+    integer :: infected_steps = 0, step = 0
     integer :: infected = 0
     integer :: pop_sum = 0
+    integer, dimension(INFECTION_INTERVAL) :: inf_history = 0
     real :: x = 0.0
     real :: y = 0.0
   contains
@@ -52,91 +55,77 @@ module squirrel_mod
     call squirrelStep(0.0, 0.0, this%x, this%y, this%state)
     this%cell = getCellFromPosition(this%x, this%y)
 
-    if (p_parent == 0) then
-        ! print *, "NEW SQ BORN. PID: ", this%id, "- Parent: ", this%parent
-        call MPI_Recv(this%infected, 1, MPI_INTEGER, 0, 0, MPI_COMM_WORLD, status, ierr)
-    else 
-      ! print *, "NEW SQ BORN. PID: ", this%id, "- Parent: ", this%parent
-    end if
-
   end subroutine squirrel_init
 
   subroutine squirrel_work(this)
     class(squirrel) :: this
-    integer, dimension(2) :: cell_data
-    integer, dimension(INFECTION_INTERVAL) :: inf_history = 0
-    integer :: status(MPI_STATUS_SIZE), request, child_id, infected_steps = 0
-    logical :: recv
-    type(actor_msg) :: msg
-
+    
     do
 
-      ! Handle incoming messages
-      do while (has_messages(MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD)) 
-        
-        call recv_message(msg)
+      
+    if (this%status == NEW_STATE) then
 
-        select case (msg%tag)
+      call recv_message(msg)
 
-        case (CELL_TAG)
+      select case (msg%tag)
 
-          this%pop_sum = this%pop_sum + msg%data(1)
+        case (START_TAG)
 
-          if (this%infected == 0) then
-            inf_history = cshift(inf_history, shift=-1)
-            inf_history(1) = msg%data(2)
-          end if
+          this%infected = msg%data(1)
+
+          PRINT *, "INIT SQ"
+          this%status = READY
 
         case default ! Unknown tag
 
-        end select
+      end select
 
-      end do
+    end if
+
+
+
 
       ! Do work when ready
       if (this%status == READY) then
 
         call sq_step(this)
 
+        call sq_check_birth(this)
+        call sq_check_infection(this)
+
+        this%status = WAITING
 
       end if
 
+      if (this%status == WAITING) then
+
+        call recv_message(msg)
+
+        select case (msg%tag)
+
+        case (CELL_TAG)
+
+        case default ! Unknown tag
+
+        end select
+
+      end if
 
       if (shouldWorkerStop()) then
+
         EXIT
-      end if
 
-      call MPI_IPROBE(this%cell, MPI_ANY_TAG, MPI_COMM_WORLD, recv, status, ierr)
-      
-      if (recv) then
-
-        call MPI_Irecv(cell_data, 2, MPI_INTEGER, this%cell, JUMP_TAG, MPI_COMM_WORLD, request, ierr)
-
-        this%step = this%step + 1
-
-        ! Check if will give birth
-
-        ! Check if will get infected
-        if ( this%infected == 0 ) then
-          if ( willCatchDisease(real(sum(inf_history)/INFECTION_INTERVAL), this%state) ) then
-            this%infected = 1
-          end if
-        else !Already infected squirrel
-          
-          infected_steps = infected_steps + 1
-          if (infected_steps .ge. MIN_INFECTED_STEPS) then
-            if (willDie(this%state)) then
-              print *, "SQRL died - ", this%id
-              EXIT
-            end if
-          end if
-        end if
-        
       end if
 
     end do
 
+
   end subroutine squirrel_work
+  ! END SQUIRREL MAIN
+
+
+
+  !SQUIRREL EXTRA FUNCTIONS
 
   subroutine sq_step(this)
     class(squirrel) :: this
@@ -146,7 +135,13 @@ module squirrel_mod
     this%cell = getCellFromPosition(this%x, this%y)
       
     ! Inform current cell the squirrel stepped
-    call MPI_BSEND(this%infected, 1, MPI_INTEGER, this%cell, JUMP_TAG, MPI_COMM_WORLD, ierr)
+    msg%tag = CELL_TAG
+    msg%data(1) = this%infected
+    msg%data(2) = this%id
+
+    call send_message(this%cell, msg)
+    
+    this%step = this%step + 1
 
   end subroutine sq_step
 
@@ -166,6 +161,34 @@ module squirrel_mod
     end if
 
   end subroutine sq_check_birth
+
+
+
+  subroutine sq_check_infection(this)
+    class(squirrel) :: this
+
+    ! Check if will get infected
+    if ( this%infected == 0 ) then
+      
+      if ( willCatchDisease(real(sum(this%inf_history)/INFECTION_INTERVAL), this%state) ) then
+        this%infected = 1
+      end if
+
+    else !Already infected squirrel
+          
+      this%infected_steps = this%infected_steps + 1
+
+      if (this%infected_steps .ge. MIN_INFECTED_STEPS) then
+        if (willDie(this%state)) then
+
+          print *, "SQRL died - ", this%id
+
+        end if
+      end if
+
+    end if
+
+  end subroutine sq_check_infection
 
 end module squirrel_mod
 
