@@ -76,12 +76,16 @@ subroutine create_actors()
   end do
 
   call masterPoll(masterStatus)
+  print *, "Interval - Squirrels alive: ", squirrels_alive()
 
   ! Start timer
   call CPU_TIME(t_start)
 
   do while (squirrels_alive() > 0)
     call masterPoll(masterStatus)
+
+
+    ! Monthly interval
 
     call CPU_TIME(t_end)
     if ( t_end - t_start > interval) then
@@ -92,6 +96,14 @@ subroutine create_actors()
       end do
 
       call CPU_TIME(t_start)
+    end if
+
+    ! No squirrels left or reached max duration
+
+    ! Too many squirrels
+    if (squirrels_alive() > 200) then
+      print *, "ABORT - Squirrels alive: ", squirrels_alive()
+      call MPI_ABORT(MPI_COMM_WORLD, 1, ierr)
     end if
 
   end do

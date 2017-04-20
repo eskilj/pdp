@@ -1,6 +1,7 @@
 module squirrel_mod
   use actor_mod
   use squirrel_functions
+  use pool
   implicit none
   private
   include "mpif.h"
@@ -41,7 +42,7 @@ module squirrel_mod
     class(squirrel) :: this
     integer, dimension(2) :: cell_data
     integer, dimension(INFECTION_INTERVAL) :: inf_history = 0
-    integer :: status(MPI_STATUS_SIZE), request, pop_sum , infected_steps = 0
+    integer :: status(MPI_STATUS_SIZE), request, pop_sum, child_id, infected_steps = 0
     logical :: recv
 
     ! print *, "sqrl: ", this%id, "- infected: ", this%infected
@@ -74,7 +75,9 @@ module squirrel_mod
       if (MOD(this%step, BIRTH_INTERVAL) == 0) then
         if ( willGiveBirth(real(pop_sum/BIRTH_INTERVAL), this%state) ) then
           pop_sum = 0
-          call create_new_actor()
+          ! call create_new_actor()
+          child_id = startWorkerProcess()
+
         end if
       end if
 
