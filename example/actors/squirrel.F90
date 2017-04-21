@@ -50,10 +50,7 @@ module squirrel_mod
     this%state = -1 - p_rank
     this%parent = p_parent
   
-
     call initialiseRNG(this%state)
-    call squirrelStep(0.0, 0.0, this%x, this%y, this%state)
-    this%cell = getCellFromPosition(this%x, this%y)
 
   end subroutine squirrel_init
 
@@ -71,9 +68,16 @@ module squirrel_mod
 
         case (START_TAG)
 
-          this%infected = msg%data(1)
+          if (this%parent == 0) then
+            this%infected = msg%data(1)
+          else
+            this%x = msg%real_data(1)
+            this%y = msg%real_data(2)
+          end if
 
-          PRINT *, "INIT SQ"
+          call squirrelStep(this%x, this%y, this%x, this%y, this%state)
+          this%cell = getCellFromPosition(this%x, this%y)
+
           this%status = READY
 
         case default ! Unknown tag
@@ -105,17 +109,25 @@ module squirrel_mod
 
         case (CELL_TAG)
 
+          ! Update squirrel's population influx history
+          this%pop_sum = this%pop_sum + msg%data(1)
+
+          if (this%infected == 0) then
+            this%inf_history = cshift(this%inf_history, shift=-1)
+            this%inf_history(1) = msg%data(1)
+          end if
+
+          this%status = READY
+
         case default ! Unknown tag
 
         end select
 
       end if
 
-      if (shouldWorkerStop()) then
-
-        EXIT
-
-      end if
+      ! if (shouldWorkerStop()) then
+      !   EXIT
+      ! end if
 
     end do
 
@@ -153,7 +165,12 @@ module squirrel_mod
 
       if ( willGiveBirth(real(this%pop_sum/BIRTH_INTERVAL), this%state) ) then
       
-        child_id = startWorkerProcess()
+        call this%spawn_actor(child_id)
+
+        msg%tag = START_TAG
+        msg%real_data = (/ this%x, this%y /)
+
+        call send_message(child_id, msg)
 
       end if
       this%pop_sum = 0

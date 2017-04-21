@@ -43,7 +43,7 @@ module cell_mod
 
         case (STEP_TAG)
 
-          print *, "SQIRR STEP TO CELL"
+          ! print *, "SQIRR STEP TO CELL"
 
           this%pop_history(1) = this%pop_history(1) + 1
           this%inf_history(1) = this%inf_history(1) + msg%data(1)
@@ -55,7 +55,7 @@ module cell_mod
           call send_message(request, msg)
 
         case (MONTH_TAG)
-          print *, "MONTH"
+          if (this%id == 1) print *, "MONTH UPDATE"
 
           this%pop_history = cshift(this%pop_history, shift=-1)
           this%pop_history(1) = 0

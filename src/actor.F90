@@ -1,5 +1,6 @@
 module actor_mod
 use actor_comm
+use pool
 implicit none
 
   integer, parameter :: JUMP_TAG = 11
@@ -14,10 +15,9 @@ implicit none
   contains
     final :: finalize
     procedure :: work
-    ! procedure :: send
-    ! procedure :: recv
     procedure :: init
     procedure :: create_msg_type
+    procedure :: spawn_actor
   end type actor
 
 contains
@@ -45,21 +45,12 @@ contains
     ! print *, "Shutting down actor."
   end subroutine
 
-  ! subroutine send(this, recipient, data)
-  !   class(actor), intent(in) :: this
-  !   integer, intent(in) :: recipient, data
+  subroutine spawn_actor(this, process_id)
+    class(actor) :: this
+    integer, intent(out) :: process_id
+    process_id = startWorkerProcess()
 
-  !   call send_message(this%id, recipient, data)
+  end subroutine spawn_actor
 
-  ! end subroutine send
-
-  ! subroutine recv(self)
-  !   class(actor), intent(in) :: self
-  !   call recv_message(self%id)
-  ! end subroutine recv
-
-  subroutine create_new_actor()
-    print *, "new actor"
-  end subroutine create_new_actor
 
 end module actor_mod

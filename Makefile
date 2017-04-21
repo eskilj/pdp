@@ -32,9 +32,11 @@ all:
 
 mac:
 	$(CC) $(SRC) $(INC_SRC) $(SIM_SRC) $< $(INC_MAC) $(MOD_DIR) -o $(BUILD_DIR)/$(EXEC) $(LFLAGS)
+	bash deploy.sh
 
 out:
 	cat $(OUT_DIR)/*.OU
 
 clean:
+	clear
 	rm -rf main *.o *.mod $(BUILD_DIR)/* $(MOD_DIR)/* $(OUT_DIR)/*

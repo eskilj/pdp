@@ -53,20 +53,15 @@ subroutine run()
 end subroutine run
 
 subroutine create_actors()
-  ! class(actor), pointer :: new_actor
-  ! type(product) :: sqrl, cell
-  ! type(product), dimension(3) :: products
-  ! type(Factory) :: sim_factroy
+  
   integer :: i, workerPid, masterStatus, infected, month
   real :: interval, t_start, t_end
+  DOUBLE PRECISION :: start_time, end_time
+  integer :: status(MPI_STATUS_SIZE), request
+  logical :: recv, look
   ! allocate(squirrel :: new_actor)
   interval = 0.1
   month = 0
-  ! sqrl = product("squirrel", new_actor)
-  ! products(:) = sqrl
-  ! call sim_factroy%init_factory(products)
-
-  PRINT *, "START SIM!"
 
   do i=1, NUM_CELLS
     workerPid = startWorkerProcess()
@@ -76,7 +71,7 @@ subroutine create_actors()
 
     infected = 0
     workerPid = startWorkerProcess()
-    
+
     if (i .le. INIT_INFECTED) then
       infected = 1
     end if
@@ -84,46 +79,52 @@ subroutine create_actors()
     msg%tag = 100
     msg%data(1) = infected
 
-    call send_message(i, msg)
-    ! call MPI_BSEND(infected, 1, MPI_INTEGER, workerPid, 0, MPI_COMM_WORLD, ierr)
+    call send_message(workerPid, msg)
   end do
 
-  
-  ! Start timer
-  call CPU_TIME(t_start)
+  masterDo: do ! START master LOOP
+    
+    look = .true.
+    call CPU_TIME(start_time)
 
+    pollDo: do while (look)
 
-  do ! START master LOOP
-    ! Let master wait (blocking) for incoming messages:
-    call masterPoll(masterStatus)
+      ! call MPI_IPROBE(MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, recv, status, ierr)
 
-    ! Initialize shutdown if 'invalid' masterStatus
-    if (masterStatus .ne. 1) EXIT 
-
-
-    ! Monthly interval
-    call CPU_TIME(t_end)
-
-    if ( t_end - t_start > interval) then
-      print *, "NEW MONTH"
-
-      month = month + 1
-      if (month .eq. SIM_DURATION) then
-
-        PRINT *, "END OF simulation"
-        EXIT
-
-      else if (month .lt. SIM_DURATION) then
-
-        do i=1, NUM_CELLS
-          call MPI_BSEND(1, 1, MPI_INTEGER, i, 22, MPI_COMM_WORLD, ierr)
-        end do
+      if (recv) then
+        ! Let master wait (blocking) for incoming messages:
+        call masterPoll(masterStatus)
 
       end if
 
-      call CPU_TIME(t_start)
+      call CPU_TIME(end_time)
+      if (end_time-start_time .gt. 0.1) then
+        look = .false.
+      end if
+
+    end do pollDo
+
+    ! print *, "NEW MONTH"
+
+    month = month + 1
+
+    if (month .eq. SIM_DURATION) then
+
+      PRINT *, "END OF simulation"
+      EXIT masterDo
+
+    else if (month .lt. SIM_DURATION) then
+
+      do i=1, NUM_CELLS
+        
+        msg%tag = 104
+
+        call send_message(i, msg)
+      end do
 
     end if
+
+      call CPU_TIME(t_start)
 
     if (squirrels_alive() .ge. MAX_SQUIRRELS) then
       PRINT *, "ABORT"
@@ -137,11 +138,12 @@ subroutine create_actors()
       EXIT
     end if
 
-  end do !END MASTER LOOP
+  end do masterDo !END MASTER LOOP
 
   PRINT *, "END MASTER LOOP"
 
 end subroutine create_actors
+
 
 subroutine become_worker()
 
