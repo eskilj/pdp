@@ -21,6 +21,8 @@ include "mpif.h"
   integer, parameter :: INIT_INFECTED=4   ! Number of squirrels initially infected
   integer, parameter :: SIM_DURATION=24   ! Length of simulation, in months
 
+  
+
   public :: run
 
 contains

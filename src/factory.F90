@@ -22,7 +22,7 @@ module factory_mod
   subroutine init_factory(self, sim_products)
     class(Factory), intent(inout) :: self
     type(product), dimension(:), intent(in) :: sim_products
-    print *, SIZE(sim_products)
+    ! print *, SIZE(sim_products)
     allocate(self%products(SIZE(sim_products)))
     self%products = sim_products
   end subroutine init_factory
