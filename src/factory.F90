@@ -2,10 +2,9 @@ module factory_mod
   use actor_mod
   private
 
-  public :: product
-  type product
+  type, public :: product
     character(len=20) :: product_name
-    class(actor), pointer :: product_class
+    type(actor), pointer :: product_class => null()
   end type product
 
   type, public :: Factory

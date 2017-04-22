@@ -1,93 +1,77 @@
+! actor model - squirrel module
+
 module squirrel_mod
+
   use actor_mod
   use squirrel_functions
   use pool
+  use param_mod
+
   implicit none
 
   private
   include "mpif.h"
 
   integer :: ierr
-  type(actor_msg) :: msg
-
-  ! Squirrel life-cycle parameters
-  integer, parameter :: BIRTH_INTERVAL = 50
-  integer, parameter :: INFECTION_INTERVAL = 50
-  integer, parameter :: MIN_INFECTED_STEPS = 50
-
-  ! Squirrel state
-  integer, parameter :: NEW_STATE = 0
-  integer, parameter :: READY = 1
-  integer, parameter :: WAITING = 2
-
-  integer, parameter :: START_TAG = 100
-  integer, parameter :: CELL_TAG = 101
-  integer, parameter :: KILL_TAG = 102
 
   ! Squirrel type, inherits from actor
-  type, public,  extends(actor) :: squirrel
+  type, public, extends(actor) :: squirrel
     integer :: cell = 0
-    integer :: infected_steps = 0, step = 0
+    integer :: step = 0
     integer :: infected = 0
     integer :: pop_sum = 0
-    integer, dimension(INFECTION_INTERVAL) :: inf_history = 0
+    integer :: infected_steps = 0
     real :: x = 0.0
     real :: y = 0.0
+    integer, dimension(INFECTION_INTERVAL) :: inf_history = 0
   contains
      ! Override actor type procedures
     procedure :: work => squirrel_work
     procedure :: init => squirrel_init
   end type squirrel
 
+
   contains
 
-  subroutine squirrel_init(this, p_rank, p_parent)
+  ! Override actor init function
+  subroutine squirrel_init(this)
     class(squirrel) :: this
-    integer :: p_rank, p_parent
+    type(PP_message) :: msg
     integer :: status(MPI_STATUS_SIZE)
+    logical :: recv
 
-    this%id = p_rank
-    this%state = -1 - p_rank
-    this%parent = p_parent
-  
+    ! Get parent id and rank from actor init
+    call this%actor_comms()
+
+    ! Update squirrel state with seed
+    this%state = -1 - this%id  
     call initialiseRNG(this%state)
+    
+    this%status = NEW_STATE
+
+    do while (this%status == NEW_STATE)
+      call recv_message(msg, this%parent, START_TAG)
+      if (msg%tag == START_TAG) then
+
+            this%infected = msg%data(1)
+            this%x = msg%real_data(1)
+            this%y = msg%real_data(2)
+
+            this%status = READY
+      end if
+    end do
+
+    call squirrelStep(this%x, this%y, this%x, this%y, this%state)
+    this%cell = getCellFromPosition(this%x, this%y)
 
   end subroutine squirrel_init
 
+
+  ! Squirrel work method
   subroutine squirrel_work(this)
     class(squirrel) :: this
     
     do
-
-      
-    if (this%status == NEW_STATE) then
-
-      call recv_message(msg)
-
-      select case (msg%tag)
-
-        case (START_TAG)
-
-          if (this%parent == 0) then
-            this%infected = msg%data(1)
-          else
-            this%x = msg%real_data(1)
-            this%y = msg%real_data(2)
-          end if
-
-          call squirrelStep(this%x, this%y, this%x, this%y, this%state)
-          this%cell = getCellFromPosition(this%x, this%y)
-
-          this%status = READY
-
-        case default ! Unknown tag
-
-      end select
-
-    end if
-
-
-
 
       ! Do work when ready
       if (this%status == READY) then
@@ -103,25 +87,25 @@ module squirrel_mod
 
       if (this%status == WAITING) then
 
-        call recv_message(msg)
+        ! call recv_message(msg, this%cell, CELL_TAG)
 
-        select case (msg%tag)
+        ! select case (msg%msg_tag)
 
-        case (CELL_TAG)
+        ! case (CELL_TAG)
 
-          ! Update squirrel's population influx history
-          this%pop_sum = this%pop_sum + msg%data(1)
+        !   ! Update squirrel's population influx history
+        !   this%pop_sum = this%pop_sum + msg%data(1)
 
-          if (this%infected == 0) then
-            this%inf_history = cshift(this%inf_history, shift=-1)
-            this%inf_history(1) = msg%data(1)
-          end if
+        !   if (this%infected == 0) then
+        !     this%inf_history = cshift(this%inf_history, shift=-1)
+        !     this%inf_history(1) = msg%data(1)
+        !   end if
 
-          this%status = READY
+        !   this%status = READY
 
-        case default ! Unknown tag
+        ! case default ! Unknown tag
 
-        end select
+        ! end select
 
       end if
 
@@ -141,17 +125,18 @@ module squirrel_mod
 
   subroutine sq_step(this)
     class(squirrel) :: this
+    type(PP_message) :: msg
 
     ! Perform step, update cell
     call squirrelStep(this%x, this%y, this%x, this%y, this%state)
     this%cell = getCellFromPosition(this%x, this%y)
       
     ! Inform current cell the squirrel stepped
-    msg%tag = CELL_TAG
+    msg%tag = STEP_TAG
     msg%data(1) = this%infected
     msg%data(2) = this%id
 
-    call send_message(this%cell, msg)
+    call send_comm(msg, this%cell)
     
     this%step = this%step + 1
 
@@ -159,6 +144,7 @@ module squirrel_mod
 
   subroutine sq_check_birth(this)
     class(squirrel) :: this
+    type(PP_message) :: msg
     integer :: child_id
 
     if ( MOD( this%step, BIRTH_INTERVAL ) == 0) then
@@ -170,7 +156,7 @@ module squirrel_mod
         msg%tag = START_TAG
         msg%real_data = (/ this%x, this%y /)
 
-        call send_message(child_id, msg)
+        call send_comm(msg, child_id)
 
       end if
       this%pop_sum = 0

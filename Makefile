@@ -16,7 +16,7 @@ EXEC 		= main
 #SRC 		= actor/pool.F90, actor/actor.F90 actor/director.F90
 SRC 		= $(SRC_DIR)/pool.F90 $(SRC_DIR)/actor_comm.F90 $(SRC_DIR)/actor.F90 $(SRC_DIR)/factory.F90 $(SRC_DIR)/director.F90
 INC_SRC 	= $(INC_DIR)/*.F90
-SIM_SRC		= $(EX_DIR)/actors/*.F90 $(EX_DIR)/simulation.F90 $(EX_DIR)/main.F90
+SIM_SRC		= $(EX_DIR)/param.F90 $(EX_DIR)/actors/*.F90 $(EX_DIR)/simulation.F90 $(EX_DIR)/main.F90
 # INC_SRC 	= src/ran2.F90 src/squirrel-functions.F90 
 # SIM_SRC 	= src/squirrel.F90 src/counter.F90 src/cell.F90 src/simulation.F90 main.F90
 

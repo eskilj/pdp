@@ -2,37 +2,31 @@ module actor_mod
 use actor_comm
 use pool
 implicit none
+private
+include "mpif.h"
 
-  integer, parameter :: JUMP_TAG = 11
-  integer, parameter :: NEW_MONTH_TAG = 22
-  integer, parameter :: SHUTDOWN_TAG = 33
-
-  type actor
+  type, public :: actor
     integer :: id
     integer :: state
     integer :: status
     integer :: parent
+    integer :: rank
   contains
     final :: finalize
     procedure :: work
     procedure :: init
-    procedure :: create_msg_type
     procedure :: spawn_actor
+    procedure :: actor_comms
   end type actor
+
+  public :: free_type, recv_message, has_messages, get_message, create_comm, PP_message, send_comm
 
 contains
 
-  subroutine create_msg_type(this)
+  subroutine init(this)
     class(actor) :: this
-    call create_type()
-  end subroutine create_msg_type
-
-  subroutine init(this, p_rank, p_parent)
-    class(actor) :: this
-    integer :: p_rank, p_parent
-    this%id = p_rank
-    this%parent = p_parent
-    ! print *, "Actor init"
+    call this%actor_comms()
+    
   end subroutine init
 
   subroutine work(this)
@@ -52,5 +46,13 @@ contains
 
   end subroutine spawn_actor
 
+  subroutine actor_comms(this)
+    class(actor) :: this
+    
+    this%id = get_rank()
+    this%parent = getCommandData()
+
+  end subroutine actor_comms
+  
 
 end module actor_mod

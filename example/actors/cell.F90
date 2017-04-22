@@ -1,21 +1,11 @@
 module cell_mod
   use actor_mod
   use pool
+  use param_mod
   implicit none
 
   private
   include "mpif.h"
-
-  integer :: ierr
-  type(actor_msg) :: msg
-
-  ! Cell Comm. tags
-  integer, parameter :: START_TAG = 100
-  integer, parameter :: STEP_TAG = 101
-  integer, parameter :: MONTH_TAG = 104
-  integer, parameter :: KILL_TAG = 102
-
-
 
   type, public, extends(actor) :: cell
     integer :: pop_influx = 0
@@ -31,31 +21,35 @@ module cell_mod
 
   subroutine cell_work(this)
     class(cell) :: this
-    integer :: status(MPI_STATUS_SIZE), request
+    type(PP_message) :: msg
+    integer :: status(MPI_STATUS_SIZE)
     logical :: recv
 
     do
 
-      ! Handle incoming messages
-      call recv_message(msg)
+      call has_messages(MPI_ANY_SOURCE, MPI_ANY_TAG, recv, status)
 
-      select case (msg%tag)
+      if (recv) then
+
+        call get_message(msg, status(MPI_SOURCE), status(MPI_TAG))
+
+        select case(msg%tag)
 
         case (STEP_TAG)
 
-          ! print *, "SQIRR STEP TO CELL"
+          print *, "SQIRR STEP TO CELL"
 
           this%pop_history(1) = this%pop_history(1) + 1
           this%inf_history(1) = this%inf_history(1) + msg%data(1)
-          request = msg%data(2)
 
           msg%data(1) = sum(this%pop_history)
           msg%data(2) = sum(this%inf_history)
 
-          call send_message(request, msg)
+          call send_comm(msg, status(MPI_SOURCE))
 
         case (MONTH_TAG)
-          if (this%id == 1) print *, "MONTH UPDATE"
+
+          print *, "CELL MONTH"
 
           this%pop_history = cshift(this%pop_history, shift=-1)
           this%pop_history(1) = 0
@@ -65,13 +59,12 @@ module cell_mod
 
           this%month = this%month + 1
 
-        case default ! Unknown tag
+        case default          
 
+          print *, msg%tag
         end select
 
-      if (shouldWorkerStop()) then
-        EXIT
-      end if    
+      end if
 
     end do
 

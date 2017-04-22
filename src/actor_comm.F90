@@ -3,85 +3,100 @@ module actor_comm
   private
   include "mpif.h"
 
-  integer :: ierr, actor_message_type
+  integer :: actor_message_type, newtype
+  integer:: ierr
+  integer :: comm = MPI_COMM_WORLD
 
-  type, public :: actor_msg
+  type, public :: PP_message
     integer :: tag = -1
     integer, dimension(2) :: data = 0
     real, dimension(2) :: real_data = 0.0
-  end type actor_msg
+  end type
 
-  public :: create_type, send_message, recv_message, has_messages
+  public :: free_type, recv_message, has_messages, get_message, create_comm, send_comm
 
   contains
 
-  subroutine create_type()
+  subroutine create_comm()
 
-    ! introduce new variables related to derived datatypes
-    type(actor_msg) :: passon
-    integer :: blocklen(3), type(3)
-    integer (MPI_ADDRESS_KIND), dimension(4) :: disp
+  type(PP_message) :: passon
+  integer :: blocklen(3), type(3)
+  integer (MPI_ADDRESS_KIND), dimension(3) :: disp
+  integer (MPI_ADDRESS_KIND) :: base
+  integer :: ierr
 
-    ! Create all necessary info for the derived datatype
-    call MPI_GET_ADDRESS(passon%tag, disp(1), ierr)
-    call MPI_GET_ADDRESS(passon%data, disp(2), ierr)
-    call MPI_GET_ADDRESS(passon%real_data, disp(3), ierr)
+  ! Create all necessary info for the derived datatype
+  call MPI_GET_ADDRESS(passon%tag,disp(1),ierr)
+  call MPI_GET_ADDRESS(passon%data,disp(2),ierr)
+  call MPI_GET_ADDRESS(passon%real_data,disp(3),ierr)
 
-    
-    disp(3) = disp(3) - disp(2)
-    disp(2) = disp(2) - disp(1)
-    disp(1) = 0
+  base = disp(1)
+  disp(1) = disp(1) - base
+  disp(2) = disp(2) - base
+  disp(3) = disp(3) - base
 
-    blocklen(1) = 1
-    blocklen(2) = 2
-    blocklen(3) = 2
+  blocklen(1) = 1
+  blocklen(2) = 2
+  blocklen(2) = 2
 
-    type(1) = MPI_INTEGER
-    type(2) = MPI_INTEGER
-    type(3) = MPI_REAL
+  type(1) = MPI_INTEGER
+  type(2) = MPI_INTEGER
+  type(3) = MPI_REAL
 
-    ! Create the new datatype, called 'newtype' and commit it
-    call MPI_TYPE_CREATE_STRUCT(3, blocklen, disp, type, actor_message_type, ierr)
-    call MPI_TYPE_COMMIT(actor_message_type, ierr)
+  ! Create the new datatype, called 'newtype' and commit it
+  call MPI_TYPE_CREATE_STRUCT(3,blocklen,disp,type,newtype,ierr)
+  call MPI_TYPE_COMMIT(newtype,ierr)
 
-  end subroutine create_type
+end subroutine create_comm
 
-  subroutine send_message(recipient, msg)
-    type(actor_msg), intent(in) :: msg
-    integer :: recipient
-    ! print *, "SEND. recipient: ", recipient, " - TAG: ", msg%tag
-    call MPI_BSEND(msg, 1, actor_message_type, recipient, msg%tag, MPI_COMM_WORLD, ierr)
+subroutine send_comm(passon, recipient)
 
-  end subroutine send_message
+  type(PP_message) :: passon
+  integer :: recipient
 
+  call MPI_BSEND(passon, 1, newtype, recipient, passon%tag, MPI_COMM_WORLD, ierr)
 
-  subroutine recv_message(msg)
-    type(actor_msg), intent(out) :: msg
+  ! print *, "DATA: ", passon%data, "REAL_DATA: ", passon%real_data, "TAG: ", passon%tag
+
+end subroutine send_comm
+
+  subroutine free_type()
+    call MPI_Type_Free(newtype, ierr)
+  end subroutine free_type
+
+  subroutine recv_message(msg, source, tag)
+
+    type(PP_message), intent(out) :: msg
+    integer, intent(in) :: source, tag
     integer :: status(MPI_STATUS_SIZE), request
     logical :: recv
 
-    ! msg%tag = -1
-
-    call MPI_IPROBE(MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, recv, status, ierr)
+    call MPI_IPROBE(source, tag, MPI_COMM_WORLD, recv, status, ierr)
 
     if (recv) then
       
-      call MPI_Irecv(msg, 1, actor_message_type, MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, request, ierr)
+      call MPI_Irecv(msg, 1, newtype, status(MPI_SOURCE), status(MPI_TAG), MPI_COMM_WORLD, request, ierr)
 
     end if
 
   end subroutine recv_message
 
-  logical function has_messages(source, tag, comm)
+  subroutine has_messages(source, tag, recv, status)
 
-    integer, intent(in) :: source, tag, comm
-    integer :: status(MPI_STATUS_SIZE)
-    logical :: recv
+    integer, intent(in) :: source, tag
+    integer, intent(out) :: status(MPI_STATUS_SIZE)
+    logical, intent(out) :: recv
 
     call MPI_IPROBE(source, tag, comm, recv, status, ierr)
-    has_messages = recv
 
-  end function has_messages
+  end subroutine has_messages
+
+  subroutine get_message(msg, source, tag)
+    type(PP_message), intent(out) :: msg
+    integer, intent(in) :: source, tag
+    call MPI_RECV(msg, 1, newtype, source, tag, comm, MPI_STATUS_IGNORE, ierr)
+    
+  end subroutine get_message
 
 
 end module actor_comm

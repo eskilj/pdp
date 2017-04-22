@@ -63,6 +63,9 @@ module pool
         integer :: i
         type(PP_Control_Package) :: out_command
         if (PP_myRank == 0) then
+
+            print *, "SHUTTING DOWN -", PP_myRank
+
             deallocate(PP_active)
             call createCommandPackage(PP_STOP, out_command)
             do i=1,PP_numProcs - 1
@@ -70,8 +73,6 @@ module pool
                 call MPI_Send(out_command, 1, PP_COMMAND_TYPE, i, PP_CONTROL_TAG, MPI_COMM_WORLD, ierr)
             end do
         end if
-
-        ! print *, "SHUTTING DOWN -", PP_myRank
 
         call MPI_Barrier(MPI_COMM_WORLD, ierr)
         call MPI_Type_Free(PP_COMMAND_TYPE, ierr)

@@ -1,6 +1,7 @@
 program main
+  use actor_mod
   use simulation
-  use director_mod
+
   implicit none
 
   ! call run()
@@ -8,26 +9,20 @@ program main
   contains
 
   subroutine entry()
-    type(director) :: sim_director
-
+    type(simulator) :: sim_director
+    class(actor), pointer :: new_actor
+    integer :: actor_type
     ! Initialize MPI via director
-    sim_director = director()
+    call init_sim(actor_type)
 
+    if (actor_type == 2) then
+      
+      call get_actor_type(actor_type, new_actor)
+      call new_actor%work()
 
-    ! Create simulation type factory
-
-
-
-    ! Initialize processes
-
-
-
-
-
-    ! Run simulation
-
-
-
+    else if (actor_type == 1) then
+      call run_actor()
+    end if
 
     ! Close
     call sim_director%director_finalize()

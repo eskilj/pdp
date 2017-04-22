@@ -1,192 +1,193 @@
+
+
 module simulation
 use actor_comm
 use squirrel_mod
 use cell_mod
 use director_mod
 use actor_mod
+use param_mod
 use pool
 implicit none
 private
 include "mpif.h"
 
-  integer :: ierr
-  type(actor_msg) :: msg
-  integer, parameter :: BUFF_SIZE = 10240
-  character :: BUFFER (BUFF_SIZE)
+  ! simulator type, inheriting from the director
+  type, public, extends(director) :: simulator
+    integer :: month = 0
+  contains
+    procedure :: work => simulation_work
+    procedure :: init => init_simulation
+  end type simulator
 
-  ! Simulation specific parameters
-  integer, parameter :: NUM_CELLS=16      ! Cells in environment
-  integer, parameter :: MAX_SQUIRRELS=200  ! Max squirrels
-  integer, parameter :: INIT_SQUIRRELS=34 ! Number of squirrels initially 
-  integer, parameter :: INIT_INFECTED=4   ! Number of squirrels initially infected
-  integer, parameter :: SIM_DURATION=24   ! Length of simulation, in months
-
-  
-
-  public :: run
+  public :: init_sim, get_actor_type, run_actor
 
 contains
 
-subroutine run()
 
-  ! type(director) :: sim_director
-  integer :: process_pool_status
-
-  call MPI_Init(ierr)
-  call MPI_Buffer_attach(BUFFER, BUFF_SIZE, ierr)
-
-  call create_type()
-
-  call processPoolInit(process_pool_status)
-  
-  ! call init_comm(process_pool_status)
-
-  ! sim_director = director()
-
-  if (process_pool_status == 1) then
-    call become_worker()
-  else if (process_pool_status == 2) then
-    call create_actors()
-  end if
-
-  call processPoolFinalise() 
-  call MPI_Finalize(ierr)
-
-end subroutine run
-
-subroutine create_actors()
-  
-  integer :: i, workerPid, masterStatus, infected, month
-  real :: interval, t_start, t_end
-  DOUBLE PRECISION :: start_time, end_time
-  integer :: status(MPI_STATUS_SIZE), request
-  logical :: recv, look
-  ! allocate(squirrel :: new_actor)
-  interval = 0.1
-  month = 0
-
+subroutine init_simulation(this)
+  class(simulator) :: this
+  integer :: actor_pid, infected, i, ierr
+  type(PP_message) :: msg
+  ! Create cell actors
   do i=1, NUM_CELLS
-    workerPid = startWorkerProcess()
+    call this%spawn_actor(actor_pid)
   end do
 
+  ! Create squirrels
   do i=1, INIT_SQUIRRELS
 
     infected = 0
-    workerPid = startWorkerProcess()
+    call this%spawn_actor(actor_pid)
 
-    if (i .le. INIT_INFECTED) then
-      infected = 1
-    end if
+    if (i .le. INIT_INFECTED) infected = 1
 
-    msg%tag = 100
-    msg%data(1) = infected
+    msg%tag = START_TAG
+    msg%data = infected
 
-    call send_message(workerPid, msg)
+    call send_comm(msg, actor_pid)
+
   end do
 
-  masterDo: do ! START master LOOP
-    
-    look = .true.
-    call CPU_TIME(start_time)
+  PRINT *, "MASTER STARTED ", NUM_CELLS, " CELLS and ", INIT_SQUIRRELS, "SQUIRREL ACTORS."
+  ! Set master status
+  this%status = 1
 
-    pollDo: do while (look)
+end subroutine init_simulation
 
-      ! call MPI_IPROBE(MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, recv, status, ierr)
+subroutine simulation_work(this)
+  class(simulator) :: this
 
-      if (recv) then
-        ! Let master wait (blocking) for incoming messages:
-        call masterPoll(masterStatus)
+  do while (this%status == 1)
 
-      end if
+    call look_activity(this)
+    call update_month(this)
+    call check_environment(this)
 
-      call CPU_TIME(end_time)
-      if (end_time-start_time .gt. 0.1) then
+  end do
+
+  PRINT *, "WORK - STATUS :", this%status
+
+end subroutine simulation_work
+
+subroutine look_activity(this)
+  class(simulator) :: this
+  DOUBLE PRECISION :: start_time, end_time
+  integer :: status(MPI_STATUS_SIZE)
+  logical :: look, recvd
+
+  look = .TRUE.
+  call CPU_TIME(start_time)
+
+  do while (look)
+
+    ! call MPI_IPROBE(MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, recvd, status, ierr)
+
+    ! Let master wait (blocking) for incoming messages:
+    if (recvd) call this%master_status()
+
+    call CPU_TIME(end_time)
+    if ( end_time-start_time .gt. MONTH_DURATION ) then
         look = .false.
-      end if
-
-    end do pollDo
-
-    ! print *, "NEW MONTH"
-
-    month = month + 1
-
-    if (month .eq. SIM_DURATION) then
-
-      PRINT *, "END OF simulation"
-      EXIT masterDo
-
-    else if (month .lt. SIM_DURATION) then
-
-      do i=1, NUM_CELLS
-        
-        msg%tag = 104
-
-        call send_message(i, msg)
-      end do
-
+        PRINT *, "NEW MONTH"
     end if
 
-      call CPU_TIME(t_start)
+  end do
 
-    if (squirrels_alive() .ge. MAX_SQUIRRELS) then
-      PRINT *, "ABORT"
-      ! call MPI_ABORT(MPI_COMM_WORLD, 1, ierr)
-    end if
+end subroutine look_activity
 
-    ! Too many squirrels
-    if (squirrels_alive() == 0) then
-      print *, "ABORT! NO Squirrels - Squirrels alive: ", squirrels_alive()
-      print *, "MONTH ", month
-      EXIT
-    end if
+subroutine update_month(this)
+  class(simulator) :: this
+  type(PP_message) :: msg
+  integer :: i
 
-  end do masterDo !END MASTER LOOP
+  this%month = this%month + 1
 
-  PRINT *, "END MASTER LOOP"
+  if (this%month .eq. SIM_DURATION) then
 
-end subroutine create_actors
+    PRINT *, "END OF simulation"
+    this%status = 0
+    ! EXIT
 
+  else if (this%month .lt. SIM_DURATION) then
 
-subroutine become_worker()
+    msg%tag = MONTH_TAG
 
-    class(actor), pointer :: new_actor
-    integer :: workerStatus = 1
-    integer :: parentId, myRank
-    logical :: stop_sim
-
-    do while (workerStatus == 1)
-
-      if(shouldWorkerStop()) EXIT
-
-      myRank = get_rank()
-      parentId = getCommandData()
-
-      if (myRank .LE. NUM_CELLS) then
-        allocate(cell :: new_actor)
-      else if (myRank .GT. NUM_CELLS .AND. myRank .LT. NUM_CELLS + MAX_SQUIRRELS) then
-        allocate(squirrel :: new_actor)
-          ! print *, "sq: ", myRank, "parent: ", parentId
-      end if
-
-      call new_actor%init(myRank, parentId)
-
-      call new_actor%work()
-      deallocate(new_actor)
-
-      if(shouldWorkerStop()) EXIT
-
-      call workerSleep(workerStatus)
+    do i=1, NUM_CELLS
+      
+      call send_comm(msg, i)
 
     end do
 
-      ! write(*,"(A,I0,A,I0)") "Ended ", myRank
+  end if
 
-end subroutine become_worker
+end subroutine update_month
+
+subroutine check_environment(this)
+  class(simulator) :: this
+  integer :: squirrels_alive
+  squirrels_alive = get_num_workers(NUM_CELLS+1)
+
+  if (squirrels_alive .ge. MAX_SQUIRRELS) then
+    PRINT *, "ABORT"
+    this%status = 0
+  end if
+
+  if (squirrels_alive == 0) then
+    print *, "ABORT! NO Squirrels."
+    this%status = 0
+  end if
+
+end subroutine check_environment
+
 
 integer function squirrels_alive()
   integer :: workers
   workers = get_num_workers(NUM_CELLS+1)
   squirrels_alive = workers
 end function squirrels_alive
+
+
+
+subroutine get_actor_type(process_pool_status, new_actor)
+  class(actor), pointer :: new_actor
+  integer :: process_pool_status
+
+  if (process_pool_status == 2) then
+    allocate(simulator :: new_actor)
+  else if (process_pool_status == 1 .AND. get_rank() .LE. NUM_CELLS) then
+    allocate(cell :: new_actor)
+  else if (process_pool_status == 1) then
+    allocate(squirrel :: new_actor)
+  end if
+
+  call new_actor%init()
+
+end subroutine get_actor_type
+
+subroutine run_actor()
+  class(actor), allocatable :: worker
+  integer :: rank, workerStatus = 1
+
+  do while (workerStatus == 1)
+
+    rank = get_rank()
+
+    if (rank .LE. NUM_CELLS) then
+      allocate(cell :: worker)
+    else
+      allocate(squirrel :: worker)
+    end if
+
+    call worker%init()
+    call worker%work()
+    deallocate(worker)
+
+    call workerSleep(workerStatus)
+
+  end do
+
+end subroutine run_actor
+
 
 end module simulation
