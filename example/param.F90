@@ -4,7 +4,7 @@ module param_mod
   ! Actor state
   integer, parameter :: NEW_STATE = 0
   integer, parameter :: READY = 1
-  integer, parameter :: WAITING = 2
+  integer, parameter :: DEAD_STATUS = 2
   
 
   ! Simulation specific parameters
@@ -14,7 +14,7 @@ module param_mod
   integer, parameter :: INIT_INFECTED=4   ! Number of squirrels initially infected
   integer, parameter :: SIM_DURATION=24   ! Length of simulation, in months
   
-  real, parameter :: MONTH_DURATION = 0.5   ! Length of a month, in seconds - for director
+  real, parameter :: MONTH_DURATION = 0.05   ! Length of a month, in seconds - for director
 
 
   ! Comm Tags

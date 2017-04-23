@@ -22,14 +22,15 @@ module pool
     integer :: PP_COMMAND_TYPE
 
     ! Internal pool global state
-    integer :: PP_myRank, PP_numProcs, PP_pollRecvCommandRequest = MPI_REQUEST_NULL, &
+    integer :: PP_numProcs, PP_pollRecvCommandRequest = MPI_REQUEST_NULL, &
         PP_processesAwaitingStart, ierr
-    logical, dimension(:), allocatable :: PP_active
+    integer, public :: PP_myRank
+    logical, public, dimension(:), allocatable :: PP_active
     type(PP_Control_Package) :: in_command
 
     ! Public subroutines available to those that use this module
     public :: processPoolInit, processPoolFinalise, masterPoll, startWorkerProcess, shutdownPool,&
-                workerSleep, getCommandData, shouldWorkerStop, get_num_workers, get_rank
+                workerSleep, getCommandData, shouldWorkerStop
 
     contains
 
@@ -64,8 +65,6 @@ module pool
         type(PP_Control_Package) :: out_command
         if (PP_myRank == 0) then
 
-            print *, "SHUTTING DOWN -", PP_myRank
-
             deallocate(PP_active)
             call createCommandPackage(PP_STOP, out_command)
             do i=1,PP_numProcs - 1
@@ -74,8 +73,13 @@ module pool
             end do
         end if
 
+        ! PRINT *, "WORKERS: ", get_num_workers(1)
+
         call MPI_Barrier(MPI_COMM_WORLD, ierr)
         call MPI_Type_Free(PP_COMMAND_TYPE, ierr)
+
+        if (PP_myRank == 0) PRINT *, "PROCESS POOL ENDED."
+        
     end subroutine processPoolFinalise
 
     ! Called by the master in a loop, will wait for commands, instruct starts and returns whether to continue polling or
@@ -97,7 +101,14 @@ module pool
             end if
             if(in_command%command==PP_STARTPROCESS) then
                 PP_processesAwaitingStart = PP_processesAwaitingStart+1
+                ! PRINT *, "WORKERS: ", get_num_workers(1)
+                if (count(PP_active(1:)) == PP_numProcs-1) then
+                PRINT *, "MAX POOL"
+                returnCode = 0
+                return
             end if
+            end if
+
 
             call startAwaitingProcessesIfNeeded(PP_processesAwaitingStart, status(MPI_SOURCE), returnedRank)
 
@@ -166,17 +177,6 @@ module pool
     integer function getCommandData()
         getCommandData = in_command%data
     end function getCommandData
-
-    integer function get_num_workers(pp_start)
-        integer :: pp_start
-        get_num_workers = INT(count(PP_active(pp_start:)))
-    end function get_num_workers
-    
-
-    integer function get_rank()
-        get_rank = PP_myRank
-    end function get_rank
-
 
     ! Determines whether or not the worker should stop (i.e. the master has send the STOP command to all workers)
     logical function shouldWorkerStop()

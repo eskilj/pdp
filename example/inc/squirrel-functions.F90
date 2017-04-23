@@ -78,8 +78,8 @@ contains
   integer function getCellFromPosition(x, y)
     real, intent(in) :: x, y
 
-    getCellFromPosition=(int(x*4)+4*(int(y*4)))
-    !print *, "pos: ", getCellFromPosition
+    getCellFromPosition=(int(x*4)+4*(int(y*4))) + 1
+    
   end function getCellFromPosition
 end module squirrel_functions
 

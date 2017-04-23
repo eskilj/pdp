@@ -1,12 +1,12 @@
 module cell_mod
   use actor_mod
-  use pool
   use param_mod
   implicit none
 
   private
   include "mpif.h"
 
+  ! Cell type, inherits from actor
   type, public, extends(actor) :: cell
     integer :: pop_influx = 0
     integer :: infection_level = 0
@@ -19,37 +19,43 @@ module cell_mod
 
   contains
 
+  ! Override actor work function
   subroutine cell_work(this)
     class(cell) :: this
     type(PP_message) :: msg
     integer :: status(MPI_STATUS_SIZE)
-    logical :: recv
+    logical :: recv = .FALSE.
 
     do
 
       call has_messages(MPI_ANY_SOURCE, MPI_ANY_TAG, recv, status)
+    
+      if (should_kill_actor()) EXIT ! Exit loop if shut-down is triggered by root
 
+      ! Handle incoming messages
       if (recv) then
 
         call get_message(msg, status(MPI_SOURCE), status(MPI_TAG))
 
         select case(msg%tag)
 
-        case (STEP_TAG)
-
-          print *, "SQIRR STEP TO CELL"
+        case (STEP_TAG) ! SQIRR STEP TO CELL
 
           this%pop_history(1) = this%pop_history(1) + 1
           this%inf_history(1) = this%inf_history(1) + msg%data(1)
 
+          msg%tag = CELL_TAG
           msg%data(1) = sum(this%pop_history)
           msg%data(2) = sum(this%inf_history)
 
-          call send_comm(msg, status(MPI_SOURCE))
+          call send_comm(msg, status(MPI_SOURCE)) ! SEND UPDATED CELL DATA BACK TO SQUIRREL
 
-        case (MONTH_TAG)
+        case (MONTH_TAG) ! NEW MONTH ALERT FROM ROOT - Update population influx history and infeciton levels
 
-          print *, "CELL MONTH"
+          PRINT *, "Cell :", this%id, ", Pop. Influx :", sum(this%pop_history), ", Infection Lvl :", sum(this%inf_history)
+
+          ! write(*,"(A,I0,A,I0,A,I0,A)") "Cell :", this%id, ", Pop. Influx :", sum(this%pop_history), &
+          ! ", Infection Lvl :", sum(this%inf_history), "."
 
           this%pop_history = cshift(this%pop_history, shift=-1)
           this%pop_history(1) = 0
@@ -59,9 +65,8 @@ module cell_mod
 
           this%month = this%month + 1
 
-        case default          
-
-          print *, msg%tag
+        case default
+          print *, "UNKNOWN TAG :", msg%tag
         end select
 
       end if
