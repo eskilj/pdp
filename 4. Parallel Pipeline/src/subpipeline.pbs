@@ -1,0 +1,34 @@
+#!/bin/bash --login
+
+# PBS job options (name, compute nodes, job time)
+#PBS -N pipeline
+#PBS -l select=72
+#PBS -l walltime=00:20:00
+
+# To get exclusive node usage
+#PBS -l place=excl
+
+#PBS -A d136
+
+# Change to the directory that the job was submitted from
+cd $PBS_O_WORKDIR
+
+# Load any required modules
+module load mpt
+module load intel-compilers-16
+
+# Set the number of threads to 1
+#   This prevents any threaded system libraries from automatically
+#   using threading.
+export OMP_NUM_THREADS=1
+
+# There are thirty input files, this is a helper loop to build up the input string passing each file into the pipeline
+# For testing runs you can reduce this number by reducing the 30, i.e. seq 1 1 will only include one input file to the pipeline
+inputfiles=""
+for i in `seq 1 30`;
+do
+    inputfiles+="../data/input_$i "
+done
+
+# Launch the parallel job
+mpiexec_mpt -n 5 -ppn 5 ./pipeline $inputfiles

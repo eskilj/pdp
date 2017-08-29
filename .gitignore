@@ -34,6 +34,5 @@
 *.app
 
 * Ignore Fortran build modules
-/mod/
-/cmake-build-debug/
+/CW - Actor Model/mod/
 /.idea/

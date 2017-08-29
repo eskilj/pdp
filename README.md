@@ -1,24 +1,18 @@
+Parallel Design Patterns
+===
 
+This repository contains the coded attempts at the PDP course practicals, as well as the coursework. The course is a component of the [High Performance Computing](http://www.ed.ac.uk/studying/postgraduate/degrees/index.php?r=site/view&id=187) MSC programme at [The University of Edinburgh](http://www.ed.ac.uk/).
 
--- Squirrel Simulation --
+Practicals
+---
 
+1. Geometric Decomposition
+2. Scalability: Geometric Decomposition
+3. Scalability: Geometric Decomposition (Same as Part 2)
+4. Parallel Pipeline
+5. Parallel Frameworks
+6. Merge/Sort
+7. Fork/Join
+8. Loop Parallelism
 
-To compile the exmple simulation:
-
-	$ make
-
-The program can then be executed with:
-
-	$ mpirun -n 220 ./build/main
-
-
-To submit job to PBS queue:
-
-	$ qsub run.pbs
-
-	or
-
-	$ make run
-
-
-Simulation output will be written to the /output directory. 
+**Coursework part two**: Actor Pattern
