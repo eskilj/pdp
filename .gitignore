@@ -36,3 +36,4 @@
 * Ignore Fortran build modules
 /mod/
 /cmake-build-debug/
+/.idea/
